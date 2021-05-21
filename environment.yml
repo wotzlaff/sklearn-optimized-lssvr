@@ -1,4 +1,4 @@
-name: project-template
+name: optimized-lssvr
 dependencies:
   - numpy
   - scipy
