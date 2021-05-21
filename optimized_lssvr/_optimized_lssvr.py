@@ -9,19 +9,27 @@ from ._common import solve_rendered
 
 class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimizationBase):
     def __init__(
-        self, kernel='rbf', gamma0=1.0, lmbda0=1e-3, n_splits=3, method=None, tol=1e-6
+        self,
+        kernel='rbf',
+        gamma0=1.0, lmbda0=1.0,
+        bounds=None,
+        n_splits=5,
+        method=None, tol=1e-6,
+        verbose=0,
     ):
         self.kernel = kernel
         self.gamma0 = gamma0
         self.lmbda0 = lmbda0
+        self.bounds = bounds
         self.n_splits = n_splits
         self.tol = tol
         self.method = method
+        self.verbose = verbose
 
     def optimize_parameters(self, X, y):
         X, y = check_X_y(X, y, y_numeric=True)
         self.X_ = X
-        self.ysqr_ = (y ** 2).sum()
+        self.yvar_ = y.var()
 
         n = X.shape[0]
         self.kf_ = KFold(self.n_splits)
@@ -40,7 +48,7 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
                 k_tr = km[idx_tr, :][:, idx_tr]
                 qm = k_tr.copy()
                 n_tr = qm.shape[0]
-                qm.flat[:: n_tr + 1] += params['lmbda']
+                qm.flat[:: n_tr + 1] += params['lmbda'] * n_tr
 
                 a, b = solve_rendered(
                     qm,
@@ -50,7 +58,6 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
 
                 k_val = km[idx_tr, :][:, idx_val]
                 f_val = k_val.T.dot(a) + b
-                n_val = f_val.size
                 err_val = f_val - y[idx_val]
                 err[idx_val] = err_val
 
@@ -58,7 +65,7 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
                 rhs0 = 2.0 * err_val.sum()
                 da, db = solve_rendered(qm, np.ones(n_tr), rhs, rhs0)
                 # lmbda deriv
-                dmse[0] -= da.dot(a)
+                dmse[0] -= da.dot(a) * n_tr
 
                 # gamma deriv
                 q = self._kernel_deriv(
@@ -66,21 +73,29 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
                 ) - self._kernel_deriv(idx_tr, idx_tr, da, km)
                 dmse[1:] += np.tensordot(q, a, axes=(0, 0))
 
-            mse = (err * err).sum() / self.ysqr_
-            dmse = dmse * np.exp(p) / self.ysqr_
+            mse = (err * err).mean() / self.yvar_
+            dmse = dmse * np.exp(p) / n / self.yvar_
+            if self.verbose > 0:
+                print(mse)
             return mse, dmse
 
         # solve hpo problem
+        bounds = self._get_bounds()
         res = scipy.optimize.minimize(
             objective,
             param0,
+            bounds=bounds,
             jac=True,
             tol=self.tol,
             method=self.method,
+            options=dict(disp=True),
         )
         param1 = res.x
+        self.relative_mse_ = res.fun
         self.params_ = self._extract_params(param1)
         self.dparams_ = self._extract_params(res.jac, transform=None)
+        if self.verbose:
+            print(res.fun, self.params_)
         return self.params_
 
     def fit(self, X, y, optimize_parameters=True):

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import Bounds
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_array, check_X_y
 from ._common import solve_rendered
@@ -94,6 +95,25 @@ class ParameterOptimizationBase:
             return param0
         raise ValueError(f"unknown kernel '{self.kernel}'")
 
+    def _get_bounds(self):
+        if self.bounds is None:
+            return
+        if self.kernel in {'rbf', 'multi_rbf'}:
+            lb_lmbda, ub_lmbda = self.bounds.get('lmbda', (0.0, np.inf))
+            lb_gamma, ub_gamma = self.bounds.get('gamma', (0.0, np.inf))
+            if self.kernel == 'multi_rbf' and np.isscalar(lb_gamma):
+                nft = self.X_.shape[1]
+                lb_gamma = lb_gamma * np.ones(nft)
+                ub_gamma = ub_gamma * np.ones(nft)
+            else:
+                lb_gamma = [lb_gamma]
+                ub_gamma = [ub_gamma]
+            with np.errstate(divide='ignore'):
+                return Bounds(
+                    np.log(np.concatenate(([lb_lmbda], lb_gamma))),
+                    np.log(np.concatenate(([ub_lmbda], ub_gamma))),
+                )
+
 
 class LSSVRBase(KernelBase):
     def _fit_regressor(self, X, y):
@@ -102,7 +122,7 @@ class LSSVRBase(KernelBase):
         n, nft = X.shape
         self.n_features_in_ = nft
         qm = self._compute_kernel(self.params_)
-        qm.flat[:: n + 1] += self.params_['lmbda']
+        qm.flat[:: n + 1] += self.params_['lmbda'] * n
 
         self.alpha_, self.bias_ = solve_rendered(qm, np.ones(n), y)
         return self
