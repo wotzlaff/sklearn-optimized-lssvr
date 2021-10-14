@@ -16,6 +16,7 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
         n_splits=5,
         method=None, tol=1e-6,
         verbose=0,
+        feature_groups=None,
     ):
         self.kernel = kernel
         self.gamma0 = gamma0
@@ -25,6 +26,7 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
         self.tol = tol
         self.method = method
         self.verbose = verbose
+        self.feature_groups = feature_groups
 
     def optimize_parameters(self, X, y):
         X, y = check_X_y(X, y, y_numeric=True)

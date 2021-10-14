@@ -14,6 +14,11 @@ class KernelBase:
                 xsqr[np.newaxis, :] + xsqr[:, np.newaxis]
         elif self.kernel == 'multi_rbf':
             self.dsqr_ = (X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2
+        elif self.kernel == 'group_multi_rbf':
+            self.dsqr_ = np.stack([
+                ((X[:, np.newaxis, g] - X[np.newaxis, :, g]) ** 2).sum(axis=2)
+                for g in self.feature_groups
+            ], axis=2)
         else:
             raise ValueError(f"unknown kernel '{self.kernel}'")
 
@@ -39,6 +44,18 @@ class KernelBase:
             else:
                 dsqr = (self.X_[:, np.newaxis, :] -
                         Xother[np.newaxis, :, :]) ** 2
+        elif self.kernel == 'group_multi_rbf':
+            if Xother is None:
+                if not hasattr(self, 'dsqr_'):
+                    self._prepare_kernel()
+                dsqr = self.dsqr_
+            else:
+                dsqr = np.stack([
+                    ((
+                        self.X_[:, np.newaxis, g] - Xother[np.newaxis, :, g]
+                    ) ** 2).sum(axis=2)
+                    for g in self.feature_groups
+                ], axis=2)
             return np.exp(-np.tensordot(dsqr, params['gamma'], axes=(2, 0)))
         else:
             raise ValueError(f"unknown kernel '{self.kernel}'")
@@ -46,7 +63,7 @@ class KernelBase:
     def _kernel_deriv(self, idx_0, idx_1, rhs, km):
         if self.kernel == 'rbf':
             return -(km[idx_0, :][:, idx_1] * self.dsqr_[idx_0, :][:, idx_1]).dot(rhs)
-        elif self.kernel == 'multi_rbf':
+        elif self.kernel in {'multi_rbf', 'group_multi_rbf'}:
             return -np.tensordot(
                 km[idx_0, :][:, idx_1][:, :, np.newaxis]
                 * self.dsqr_[idx_0, :][:, idx_1],
@@ -65,7 +82,7 @@ class ParameterOptimizationBase:
                 lmbda=transform(p[0]),
                 gamma=transform(p[1]),
             )
-        elif self.kernel == 'multi_rbf':
+        elif self.kernel in {'multi_rbf', 'group_multi_rbf'}:
             return dict(
                 lmbda=transform(p[0]),
                 gamma=transform(p[1:]),
@@ -75,16 +92,18 @@ class ParameterOptimizationBase:
     def _compose_params(self, p):
         if self.kernel == 'rbf':
             return np.log([p['lmbda'], p['gamma']])
-        elif self.kernel == 'multi_rbf':
+        elif self.kernel in {'multi_rbf', 'group_multi_rbf'}:
             return np.log(np.concatenate(([p['lmbda']], p['gamma'])))
         raise ValueError(f"unknown kernel '{self.kernel}'")
 
     def _initialize_parameters(self):
-        if self.kernel in {'rbf', 'multi_rbf'}:
+        if self.kernel in {'rbf', 'multi_rbf', 'group_multi_rbf'}:
             gamma0 = self.gamma0
             if self.kernel == 'multi_rbf' and np.isscalar(gamma0):
                 nft = self.X_.shape[1]
                 gamma0 = gamma0 * np.ones(nft)
+            elif self.kernel == 'group_multi_rbf' and np.isscalar(gamma0):
+                gamma0 = gamma0 * np.ones(len(self.feature_groups))
 
             param0 = self._compose_params(
                 dict(
@@ -98,11 +117,15 @@ class ParameterOptimizationBase:
     def _get_bounds(self):
         if self.bounds is None:
             return
-        if self.kernel in {'rbf', 'multi_rbf'}:
+        if self.kernel in {'rbf', 'multi_rbf', 'group_multi_rbf'}:
             lb_lmbda, ub_lmbda = self.bounds.get('lmbda', (0.0, np.inf))
             lb_gamma, ub_gamma = self.bounds.get('gamma', (0.0, np.inf))
             if self.kernel == 'multi_rbf' and np.isscalar(lb_gamma):
                 nft = self.X_.shape[1]
+                lb_gamma = lb_gamma * np.ones(nft)
+                ub_gamma = ub_gamma * np.ones(nft)
+            elif self.kernel == 'group_multi_rbf' and np.isscalar(lb_gamma):
+                nft = len(self.feature_groups)
                 lb_gamma = lb_gamma * np.ones(nft)
                 ub_gamma = ub_gamma * np.ones(nft)
             else:
