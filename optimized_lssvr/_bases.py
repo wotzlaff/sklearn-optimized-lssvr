@@ -15,10 +15,14 @@ class KernelBase:
         elif self.kernel == 'multi_rbf':
             self.dsqr_ = (X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2
         elif self.kernel == 'group_multi_rbf':
-            self.dsqr_ = np.stack([
-                ((X[:, np.newaxis, g] - X[np.newaxis, :, g]) ** 2).sum(axis=2)
-                for g in self.feature_groups
-            ], axis=2)
+            dsqr_parts = []
+            for g in self.feature_groups:
+                xsqr = (X[:, g] * X[:, g]).sum(axis=1)
+                dsqr_tmp = -2.0 * \
+                    X[:, g].dot(X[:, g].T) + xsqr[np.newaxis, :] + \
+                    xsqr[:, np.newaxis]
+                dsqr_parts.append(dsqr_tmp)
+            self.dsqr_ = np.stack(dsqr_parts, axis=2)
         else:
             raise ValueError(f"unknown kernel '{self.kernel}'")
 
@@ -44,18 +48,22 @@ class KernelBase:
             else:
                 dsqr = (self.X_[:, np.newaxis, :] -
                         Xother[np.newaxis, :, :]) ** 2
+            return np.exp(-np.tensordot(dsqr, params['gamma'], axes=(2, 0)))
         elif self.kernel == 'group_multi_rbf':
             if Xother is None:
                 if not hasattr(self, 'dsqr_'):
                     self._prepare_kernel()
                 dsqr = self.dsqr_
             else:
-                dsqr = np.stack([
-                    ((
-                        self.X_[:, np.newaxis, g] - Xother[np.newaxis, :, g]
-                    ) ** 2).sum(axis=2)
-                    for g in self.feature_groups
-                ], axis=2)
+                dsqr_parts = []
+                for g in self.feature_groups:
+                    xsqr0 = (self.X_[:, g] * self.X_[:, g]).sum(axis=1)
+                    xsqr1 = (Xother[:, g] * Xother[:, g]).sum(axis=1)
+                    dsqr_tmp = -2.0 * \
+                        self.X_[:, g].dot(
+                            Xother[:, g].T) + xsqr1[np.newaxis, :] + xsqr0[:, np.newaxis]
+                    dsqr_parts.append(dsqr_tmp)
+                dsqr = np.stack(dsqr_parts, axis=2)
             return np.exp(-np.tensordot(dsqr, params['gamma'], axes=(2, 0)))
         else:
             raise ValueError(f"unknown kernel '{self.kernel}'")

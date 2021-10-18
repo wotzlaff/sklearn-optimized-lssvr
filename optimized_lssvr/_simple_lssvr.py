@@ -27,10 +27,11 @@ class LSSVR(BaseEstimator, RegressorMixin, LSSVRBase):
     LSSVR()
     """
 
-    def __init__(self, kernel='rbf', gamma=1.0, lmbda=1e-3):
+    def __init__(self, kernel='rbf', gamma=1.0, lmbda=1e-3, feature_groups=None):
         self.kernel = kernel
         self.gamma = gamma
         self.lmbda = lmbda
+        self.feature_groups = feature_groups
 
     def fit(self, X, y):
         self.params_ = dict(gamma=self.gamma, lmbda=self.lmbda)
