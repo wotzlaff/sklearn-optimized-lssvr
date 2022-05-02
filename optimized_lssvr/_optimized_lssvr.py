@@ -1,20 +1,25 @@
 import numpy as np
 import scipy.optimize
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, LeaveOneGroupOut
 from sklearn.utils.validation import check_X_y
 from ._bases import LSSVRBase, ParameterOptimizationBase
 from ._common import solve_rendered
 
 
-class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimizationBase):
+class OptimizedLSSVR(
+    BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimizationBase
+):
+
     def __init__(
         self,
         kernel='rbf',
-        gamma0=1.0, lmbda0=1.0,
+        gamma0=1.0,
+        lmbda0=1.0,
         bounds=None,
         n_splits=5,
-        method=None, tol=1e-6,
+        method=None,
+        tol=1e-6,
         verbose=0,
         feature_groups=None,
     ):
@@ -28,13 +33,16 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
         self.verbose = verbose
         self.feature_groups = feature_groups
 
-    def optimize_parameters(self, X, y):
+    def optimize_parameters(self, X, y, groups=None):
         X, y = check_X_y(X, y, y_numeric=True)
         self.X_ = X
         self.yvar_ = y.var()
 
         n = X.shape[0]
-        self.kf_ = KFold(self.n_splits)
+        if groups is not None:
+            split = LeaveOneGroupOut()
+        else:
+            split = KFold(self.n_splits)
         self._prepare_kernel()
 
         param0 = self._initialize_parameters()
@@ -45,12 +53,12 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
             km = self._compute_kernel(params)
             err = np.zeros(n)
             dmse = np.zeros(n_param)
-            for idx_tr, idx_val in self.kf_.split(X):
+            for idx_tr, idx_val in split.split(X, groups=groups):
 
                 k_tr = km[idx_tr, :][:, idx_tr]
                 qm = k_tr.copy()
                 n_tr = qm.shape[0]
-                qm.flat[:: n_tr + 1] += params['lmbda'] * n_tr
+                qm.flat[::n_tr + 1] += params['lmbda'] * n_tr
 
                 a, b = solve_rendered(
                     qm,
@@ -100,8 +108,8 @@ class OptimizedLSSVR(BaseEstimator, RegressorMixin, LSSVRBase, ParameterOptimiza
             print(res.fun, self.params_)
         return self.params_
 
-    def fit(self, X, y, optimize_parameters=True):
+    def fit(self, X, y, groups=None, optimize_parameters=True):
         if optimize_parameters:
-            self.optimize_parameters(X, y)
+            self.optimize_parameters(X, y, groups=groups)
         self._fit_regressor(X, y)
         return self
