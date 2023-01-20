@@ -4,7 +4,7 @@ version = "0.0.2"
 description = "Least Squares Support Vector Regression with optimized hyperparameters"
 readme = "README.md"
 requires-python = ">=3.7"
-license = "MIT"
+license = {file = "LICENSE"}
 authors = [
   {name = "Nico Strasdat", email = "nstrasdat@gmail.com" }
 ]
