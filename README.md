@@ -1,4 +1,4 @@
-# optimized-lssvr - A basic implementation of LS-SVR with optimized hyperparameters
+# Least Squares Support Vector Regression with optimized hyperparameters
 This is a simple implementation of the hyperparameter optimization approach proposed in [[1]](#1).
 
 ## Installation

@@ -12,7 +12,7 @@ with open(ver_file) as f:
     exec(f.read())
 
 DISTNAME = 'optimized-lssvr'
-DESCRIPTION = 'A basic implementation of LS-SVR with optimized hyperparameters'
+DESCRIPTION = 'Least Squares Support Vector Regression with optimized hyperparameters'
 with codecs.open('README.md', encoding='utf-8-sig') as f:
     LONG_DESCRIPTION = f.read()
 MAINTAINER = 'Nico Strasdat'
