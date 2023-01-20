@@ -1,10 +1,10 @@
 [project]
 name = "optimized_lssvr"
-version = "0.0.1"
+version = "0.0.2"
 description = "Least Squares Support Vector Regression with optimized hyperparameters"
 readme = "README.md"
 requires-python = ">=3.7"
-license = {file = "LICENSE"}
+license = "MIT"
 authors = [
   {name = "Nico Strasdat", email = "nstrasdat@gmail.com" }
 ]
@@ -13,6 +13,7 @@ dependencies = [
   "scipy",
   "scikit-learn",
 ]
+repository = "https://github.com/wotzlaff/sklearn-optimized-lssvr"
 
 
 [build-system]
