@@ -13,7 +13,9 @@ dependencies = [
   "scipy",
   "scikit-learn",
 ]
-repository = "https://github.com/wotzlaff/sklearn-optimized-lssvr"
+
+[project.urls]
+Homepage = "https://github.com/wotzlaff/sklearn-optimized-lssvr"
 
 
 [build-system]
